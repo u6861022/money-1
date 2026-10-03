@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💰 個人記帳系統 v2 (雲端同步版)</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- 引入 Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入 FontAwesome 圖標 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen pb-12">
+
+    <div class="max-w-5xl mx-auto px-4 pt-6">
+        <!-- 頂部狀態看板 -->
+        <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl p-6 shadow-xl mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <span>💰</span> 個人記帳系統 v2 (雲端同步版)
+                </h1>
+                <p class="text-blue-100 text-sm mt-1">🔄 正在同步雲端...</p>
+            </div>
+            <div class="grid grid-cols-3 gap-4 bg-white/10 backdrop-blur-md rounded-xl p-4 w-full md:w-auto">
+                <div class="text-center px-2">
+                    <p class="text-xs text-blue-200">篩選後總支出</p>
+                    <p id="stat-total-expense" class="text-lg font-bold text-white">$0</p>
+                </div>
+                <div class="text-center px-2 border-x border-white/20">
+                    <p class="text-xs text-blue-200">篩選後筆數</p>
+                    <p id="stat-count" class="text-lg font-bold text-white">0</p>
+                </div>
+                <div class="text-center px-2">
+                    <p class="text-xs text-blue-200">平均每筆</p>
+                    <p id="stat-avg-expense" class="text-lg font-bold text-white">$0</p>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左側操作面板：新增與條件篩選 -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- ➕ 新增記帳 -->
+                <section class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4">➕ 新增記帳</h2>
+                    <form id="add-record-form" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">日期</label>
+                            <input type="date" id="form-date" required class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">類型</label>
+                            <select id="form-category" required class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="日常伙食">日常伙食</option>
+                                <option value="交通娛樂">交通娛樂</option>
+                                <option value="生活雜支">生活雜支</option>
+                                <option value="固定開銷">固定開銷</option>
+                                <option value="其他支出">其他支出</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">金額</label>
+                            <input type="number" id="form-amount" min="1" placeholder="請輸入金額" required class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">備註</label>
+                            <input type="text" id="form-note" placeholder="備註說明" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl transition shadow-sm text-sm">新增記錄</button>
+                    </form>
+                </section>
+
+                <!-- 🔍 篩選查詢 -->
+                <section class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4">🔍 篩選查詢</h2>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">開始日期</label>
+                                <input type="date" id="filter-start-date" class="w-full rounded-lg border border-gray-200 p-1.5 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">結束日期</label>
+                                <input type="date" id="filter-end-date" class="w-full rounded-lg border border-gray-200 p-1.5 text-xs">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">類型</label>
+                            <select id="filter-category" class="w-full rounded-lg border border-gray-200 p-1.5 text-xs">
+                                <option value="全部類型">全部類型</option>
+                                <option value="日常伙食">日常伙食</option>
+                                <option value="交通娛樂">交通娛樂</option>
+                                <option value="生活雜支">生活雜支</option>
+                                <option value="固定開銷">固定開銷</option>
+                                <option value="其他支出">其他支出</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">備註關鍵字</label>
+                            <input type="text" id="filter-keyword" placeholder="關鍵字搜尋..." class="w-full rounded-lg border border-gray-200 p-1.5 text-xs">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <button id="btn-apply-filter" class="bg-gray-800 hover:bg-gray-900 text-white text-xs py-2 rounded-lg transition">套用篩選</button>
+                            <button id="btn-clear-filter" class="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs py-2 rounded-lg transition">清除篩選</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 右側展示面板：圖表與特定月份明細 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 📊 分類支出比例 -->
+                <section class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-100 pb-3 mb-4">
+                        <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <span>📊</span> 分類支出比例
+                        </h2>
+                        
+                        <!-- 新增的年、月切換下拉選單區塊 -->
+                        <div class="flex items-center gap-1.5 bg-gray-100 p-1.5 rounded-xl border border-gray-200 w-full sm:w-auto justify-end">
+                            <select id="global-year-select" class="bg-white border border-gray-200 rounded-lg text-xs font-semibold px-2.5 py-1 focus:outline-none cursor-pointer">
+                                <!-- 由 JS 動態生成 -->
+                            </select>
+                            <select id="global-month-select" class="bg-white border border-gray-200 rounded-lg text-xs font-semibold px-2.5 py-1 focus:outline-none cursor-pointer">
+                                <option value="1">1月</option>
+                                <option value="2">2月</option>
+                                <option value="3">3月</option>
+                                <option value="4">4月</option>
+                                <option value="5">5月</option>
+                                <option value="6">6月</option>
+                                <option value="7">7月</option>
+                                <option value="8">8月</option>
+                                <option value="9">9月</option>
+                                <option value="10">10月</option>
+                                <option value="11">11月</option>
+                                <option value="12">12月</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="relative w-full max-w-xs mx-auto h-60 flex items-center justify-center">
+                        <canvas id="categoryPieChart"></canvas>
+                        <div id="no-chart-data-msg" class="hidden absolute inset-0 bg-white flex items-center justify-center text-gray-400 text-xs font-medium">該月份無記帳數據</div>
+                    </div>
+                </section>
+
+                <!-- 📈 每月支出趨勢 -->
+                <section class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4">📈 每月支出趨勢</h2>
+                    <div class="w-full h-44">
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- 📋 記帳明細 -->
+                <section class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-100 pb-3 mb-4">
+                        <h2 class="text-lg font-bold text-gray-900">📋 記帳明細</h2>
+                        <span id="detail-month-label" class="text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-100">
+                            載入中...
+                        </span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-500">
+                            <thead class="bg-gray-50 text-xs text-gray-400 font-semibold uppercase">
+                                <tr>
+                                    <th class="px-4 py-2.5 rounded-l-xl">日期</th>
+                                    <th class="px-4 py-2.5">類型</th>
+                                    <th class="px-4 py-2.5">金額</th>
+                                    <th class="px-4 py-2.5">備註</th>
+                                    <th class="px-4 py-2.5 text-right rounded-r-xl">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="records-table-body" class="divide-y divide-gray-100">
+                                <!-- 由 JavaScript 動態渲染 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="bg-gray-100 rounded-2xl p-6 border border-gray-200">
+                    <h2 class="text-xs font-bold text-gray-600 mb-3">💾 資料備份與備用工具</h2>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <button class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs px-3 py-2 rounded-xl transition shadow-sm"><i class="fa-regular fa-file-excel text-green-600 mr-1"></i> 匯出 Excel</button>
+                        <button class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs px-3 py-2 rounded-xl transition shadow-sm"><i class="fa-solid fa-file-import text-blue-500 mr-1"></i> 匯入 Excel / CSV</button>
+                        <button class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs px-3 py-2 rounded-xl transition shadow-sm"><i class="fa-regular fa-file-code text-orange-500 mr-1"></i> 下載 JSON 備份</button>
+                        <button id="btn-clear-cache" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-2 rounded-xl transition border border-red-100"><i class="fa-regular fa-trash-can mr-1"></i> ⚠ 清除本地快取</button>
+                    </div>
+                    <p class="text-xs text-gray-400">💡 提示：本系統已啟用 Google Sheets 雲端連線，出門在外用手機登入也會自動加載與儲存。此處按鈕可用於手動備份防丟失。</p>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化模擬與本地資料
+        const initialMockData = [
+            { id: "1", date: "2026-10-01", category: "日常伙食", amount: 150, note: "午餐麥當勞" },
+            { id: "2", date: "2026-10-02", category: "交通娛樂", amount: 500, note: "悠遊卡加值" },
+            { id: "3", date: "2026-10-03", category: "生活雜支", amount: 320, note: "購買日用品" },
+            { id: "4", date: "2026-09-15", category: "固定開銷", amount: 1200, note: "手機電信費" }
+        ];
+
+        let records = JSON.parse(localStorage.getItem('accounting_records')) || initialMockData;
+        let pieChart = null, trendChart = null;
+        let advancedFilter = null;
+
+        const yearSelect = document.getElementById('global-year-select');
+        const monthSelect = document.getElementById('global-month-select');
+        const detailMonthLabel = document.getElementById('detail-month-label');
+
+        // 自動獲取現在時間並預設顯示
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.getMonth() + 1;
+
+        document.getElementById('form-date').value = currentDate.toISOString().split('T')[0];
+
+        // 動態產生年份選單
+        for (let y = currentYear; y >= currentYear - 3; y--) {
+            const option = document.createElement('option');
+            option.value = y;
+            option.textContent = y + '年';
+            yearSelect.appendChild(option);
+        }
+
+        yearSelect.value = currentYear;
+        monthSelect.value = currentMonth;
+
+        yearSelect.addEventListener('change', updateUI);
+        monthSelect.addEventListener('change', updateUI);
+
+        document.getElementById('add-record-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const date = document.getElementById('form-date').value;
+            const category = document.getElementById('form-category').value;
+            const amount = parseInt(document.getElementById('form-amount').value);
+            const note = document.getElementById('form-note').value;
+
+            const newRecord = { id: Date.now().toString(), date, category, amount, note };
+            records.unshift(newRecord);
+            localStorage.setItem('accounting_records', JSON.stringify(records));
+
+            const rDate = new Date(date);
+            yearSelect.value = rDate.getFullYear();
+            monthSelect.value = rDate.getMonth() + 1;
+
+            document.getElementById('form-amount').value = '';
+            document.getElementById('form-note').value = '';
+
+            updateUI();
+        });
+
+        document.getElementById('btn-apply-filter').addEventListener('click', () => {
+            advancedFilter = {
+                startDate: document.getElementById('filter-start-date').value,
+                endDate: document.getElementById('filter-end-date').value,
+                category: document.getElementById('filter-category').value,
+                keyword: document.getElementById('filter-keyword').value.trim().toLowerCase()
+            };
+            updateUI();
+        });
+
+        document.getElementById('btn-clear-filter').addEventListener('click', () => {
+            document.getElementById('filter-start-date').value = '';
+            document.getElementById('filter-end-date').value = '';
+            document.getElementById('filter-category').value = '全部類型';
+            document.getElementById('filter-keyword').value = '';
+            advancedFilter = null;
+            updateUI();
+        });
+
+        function updateUI() {
+            const selectedYear = parseInt(yearSelect.value);
+            const selectedMonth = parseInt(monthSelect.value);
+
+            detailMonthLabel.textContent = `📅 正在顯示：${selectedYear}年${selectedMonth}月 的帳目數據`;
+
+            let filteredRecords = records.filter(item => {
+                const itemDate = new Date(item.date);
+                return itemDate.getFullYear() === selectedYear && (itemDate.getMonth() + 1) === selectedMonth;
+            });
+
+            if (advancedFilter) {
+                if (advancedFilter.startDate) filteredRecords = filteredRecords.filter(r => r.date >= advancedFilter.startDate);
+                if (advancedFilter.endDate) filteredRecords = filteredRecords.filter(r => r.date <= advancedFilter.endDate);
+                if (advancedFilter.category !== '全部類型') filteredRecords = filteredRecords.filter(r => r.category === advancedFilter.category);
+                if (advancedFilter.keyword) filteredRecords = filteredRecords.filter(r => r.note.toLowerCase().includes(advancedFilter.keyword));
+            }
+
+            const totalExpense = filteredRecords.reduce((sum, r) => sum + r.amount, 0);
+            const count = filteredRecords.length;
+            const avgExpense = count > 0 ? Math.round(totalExpense / count) : 0;
+
+            document.getElementById('stat-total-expense').textContent = `$${totalExpense.toLocaleString()}`;
+            document.getElementById('stat-count').textContent = count;
+            document.getElementById('stat-avg-expense').textContent = `$${avgExpense.toLocaleString()}`;
+
+            const tbody = document.getElementById('records-table-body');
+            tbody.innerHTML = '';
+
+            if (filteredRecords.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 text-xs"><i class="fa-regular fa-folder-open mb-1 block text-base"></i> 當前月份與篩選條件下無任何明細</td></tr>`;
+            } else {
+                filteredRecords.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-50 transition";
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 text-xs font-medium text-gray-900">${r.date}</td>
+                        <td class="px-4 py-3 text-xs"><span class="px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100">${r.category}</span></td>
+                        <td class="px-4 py-3 text-xs font-semibold text-gray-900">$${r.amount.toLocaleString()}</td>
+                        <td class="px-4 py-3 text-xs text-gray-500 truncate max-w-[120px]">${r.note || '—'}</td>
+                        <td class="px-4 py-3 text-xs text-right"><button onclick="deleteItem('${r.id}')" class="text-red-500 hover:text-red-700 font-medium transition"><i class="fa-regular fa-trash-can"></i> 刪除</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            renderPieChart(filteredRecords);
+            renderTrendChart(records);
+        }
+
+        window.deleteItem = function(id) {
+            if (confirm('確定要刪除此筆記帳明細嗎？')) {
+                records = records.filter(r => r.id !== id);
+                localStorage.setItem('accounting_records', JSON.stringify(records));
+                updateUI();
+            }
+        };
+
+        function renderPieChart(data) {
+            const categories = ['日常伙食', '交通娛樂', '生活雜支', '固定開銷', '其他支出'];
+            const totals = categories.map(cat => data.filter(r => r.category === cat).reduce((sum, r) => sum + r.amount, 0));
+            const hasData = totals.some(t => t > 0);
+            
+            document.getElementById('no-chart-data-msg').classList.toggle('hidden', hasData);
+
+            if (pieChart) pieChart.destroy();
+
+            const ctx = document.getElementById('categoryPieChart').getContext('2d');
+            pieChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories,
+                    datasets: [{
+                        data: totals,
+                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#f43f5e', '#6b7280'],
+                        borderWidth: 2, borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function renderTrendChart(allData) {
+            const monthsLabels = [];
+            const dataset = [];
+
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date();
+                d.setMonth(d.getMonth() - i);
+                monthsLabels.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+
+            monthsLabels.forEach(ym => {
+                const [year, month] = ym.split('-').map(Number);
+                const sum = allData.filter(r => {
+                    const rd = new Date(r.date);
+                    return rd.getFullYear() === year && (rd.getMonth() + 1) === month;
+                }).reduce((s, r) => s + r.amount, 0);
+                dataset.push(sum);
+            });
+
+            if (trendChart) trendChart.destroy();
+
+            const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+            trendChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: monthsLabels.map(m => m.split('-')[1] + '月'),
+                    datasets: [{ data: dataset, backgroundColor: 'rgba(79, 70, 229, 0.15)', borderColor: '#4f46e5', borderWidth: 2, borderRadius: 4, barThickness: 20 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+
+        document.getElementById('btn-clear-cache').addEventListener('click', () => {
+            if (confirm('確定要清空本地所有記帳明細，回復為預設範例嗎？')) {
+                localStorage.removeItem('accounting_records');
+                records = [...initialMockData];
+                updateUI();
+            }
+        });
+
+        updateUI();
+    </script>
+</body>
+</html>
