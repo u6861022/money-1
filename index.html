@@ -35,30 +35,63 @@
             }
         }
     
-        /* 頂部更新按鈕與最後同步時間 */
-        .sync-control {
-            width: 78px;
+        /* 頂部同步狀態、更新按鈕：三欄視覺中心，手機優先 */
+        .header-core {
+            position: relative;
+            min-height: 78px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-inline: 88px;
         }
-        .sync-control button {
-            min-height: 32px;
+        .header-status {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            min-width: 82px;
+            gap: 3px;
+        }
+        .header-status #syncStatus {
+            margin: 0;
+            white-space: nowrap;
         }
         #lastUpdatedTime {
-            width: 100%;
-            max-width: 150px;
+            width: auto;
+            max-width: 92px;
             overflow: hidden;
-            text-align: center;
-            line-height: 1.15;
-            font-size: 7px;
+            text-align: left;
+            line-height: 1.12;
+            font-size: 5px;
             white-space: normal;
         }
         #lastUpdatedTime .sync-time-date,
         #lastUpdatedTime .sync-time-clock {
             display: block;
         }
-        /* v7：標題、分頁色彩、新增記帳按鈕與分頁專屬背景 */
-        .sync-control { width: 92px; }
+        .header-title {
+            margin: 0;
+            text-align: center;
+            line-height: 1.1;
+        }
+        /* v9：標題區、分頁色彩、新增記帳按鈕與分頁專屬背景 */
+        .sync-control {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 34px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
         .sync-icon-button {
-            width: 32px; height: 32px; min-height: 32px; padding: 0;
+            width: 29px; height: 29px; min-height: 29px; padding: 0;
             border: 0; border-radius: 9999px; background: transparent;
             color: #2563EB; display: inline-flex; align-items: center; justify-content: center;
             font-size: 18px; line-height: 1; cursor: pointer;
@@ -74,6 +107,19 @@
         .app-tab.active img { filter: saturate(0.94); }
         .record-submit-button { background-color: #A2A2A3; color: #2F3032; }
         .record-submit-button:hover { background-color: #929294; color: #202124; }
+
+        /* 可輸入欄位：提高邊框對比，讓手機上更容易辨識可操作區域。 */
+        input, select, textarea {
+            border-color: #858588 !important;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #4E4E50 !important;
+            box-shadow: 0 0 0 2px rgba(78, 78, 80, 0.12) !important;
+        }
+        input::placeholder, textarea::placeholder {
+            color: #77777A;
+            opacity: 1;
+        }
 
         /* 分頁按鈕：文字在左、圖片在右；手機優先放大圖片，維持舒適點擊高度。 */
         .app-tab {
@@ -109,7 +155,9 @@
             background-repeat: repeat-y;
             background-position: center top;
             background-size: 100% auto;
-            opacity: 0.20;
+            opacity: 0.04;
+            filter: blur(0.6px) saturate(0.8);
+            transform: scale(1.002);
             pointer-events: none;
         }
         .app-themed-panel::after {
@@ -150,7 +198,29 @@
         }
 
         @media (max-width: 639px) {
-            .sync-control { width: 78px; }
+            .header-core {
+                min-height: 70px;
+                padding-inline: 70px;
+            }
+            .header-status {
+                min-width: 76px;
+                gap: 2px;
+            }
+            .header-status #syncStatus {
+                font-size: 9px;
+                padding: 2px 5px;
+            }
+            #lastUpdatedTime {
+                max-width: 76px;
+                font-size: 5px;
+            }
+            .header-title {
+                font-size: 1.5rem;
+            }
+            .sync-control {
+                right: 0;
+                width: 29px;
+            }
             .sync-icon-button { width: 29px; height: 29px; min-height: 29px; font-size: 16px; }
             .app-tab {
                 min-height: 64px;
@@ -175,19 +245,19 @@
 <div class="max-w-7xl mx-auto px-4 py-8">
 <!-- 頂部標題 -->
 <div class="bg-white rounded-2xl shadow-sm p-6 mb-0 text-center relative">
-<div class="relative min-h-[74px] flex items-center justify-center px-16 sm:px-28">
-<h1 class="text-2xl sm:text-3xl font-extrabold text-gray-800 mb-2 flex justify-center items-center gap-2 flex-wrap">
-        🐟☀️記帳
-        <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium animate-pulse" id="syncStatus">正在同步雲端...</span>
-</h1>
-<div class="sync-control absolute top-0 right-0 flex flex-col items-center gap-1">
-<button aria-label="更新 Google 試算表資料" class="sync-icon-button" id="syncButton" onclick="syncLatestData()" title="更新 Google 試算表資料" type="button">
-<i aria-hidden="true" class="fa-solid fa-arrows-rotate" id="syncButtonIcon"></i>
-</button>
-<span class="text-gray-400 text-center" id="lastUpdatedTime" title="最後成功同步時間">
+<div class="header-core">
+<div class="header-status" aria-live="polite">
+<span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium animate-pulse" id="syncStatus">正在同步雲端...</span>
+<span class="text-gray-400" id="lastUpdatedTime" title="最後成功同步時間">
 <span class="sync-time-date" id="lastUpdatedDate">尚未同步</span>
 <span class="sync-time-clock hidden" id="lastUpdatedClock"></span>
 </span>
+</div>
+<h1 class="header-title text-2xl sm:text-3xl font-extrabold text-gray-800">🐟☀️記帳</h1>
+<div class="sync-control">
+<button aria-label="更新 Google 試算表資料" class="sync-icon-button" id="syncButton" onclick="syncLatestData()" title="更新 Google 試算表資料" type="button">
+<i aria-hidden="true" class="fa-solid fa-arrows-rotate" id="syncButtonIcon"></i>
+</button>
 </div>
 </div>
 </div><nav aria-label="主要功能分頁" class="mt-4 bg-white rounded-2xl shadow-sm p-2 grid grid-cols-4 gap-1" id="appTabs">
