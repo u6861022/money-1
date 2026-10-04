@@ -5,11 +5,13 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>🐟☀️記帳（雲端同步版）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
         /* 手機版表單防止 date/select 因原生最小寬度造成重疊或溢出 */
         input, select, button {
@@ -271,7 +273,49 @@
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
         }
-    </style>
+    
+        /* v10：日期輸入框與其他表單欄位統一寬度。 */
+        #dateInput,
+        .edit-date {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            display: block;
+            box-sizing: border-box;
+        }
+        #dateInput {
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        /* v10：年度多選。 */
+        .trend-year-filter-menu {
+            max-height: 18rem;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .trend-year-filter-option { min-width: 0; }
+
+        /* v10：查詢長條圖固定柱寬＋水平滑動。 */
+        .query-chart-scroll {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
+            scrollbar-width: thin;
+            padding-bottom: 6px;
+        }
+        .query-chart-inner {
+            position: relative;
+            min-width: 100%;
+            height: 20rem;
+        }
+        @media (max-width: 639px) {
+            .query-chart-inner { height: 19rem; }
+        }
+
+</style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen pb-12">
 <div class="max-w-7xl mx-auto px-4 py-8">
@@ -310,7 +354,7 @@
 <span class="font-semibold">備份</span>
 </button>
 </nav>
-<!-- 主要工作區：左側＝新增記帳 → 記帳明細；右側＝每月比例 → 篩選查詢 → 消費類型趨勢 → 年度支出趨勢 -->
+<!-- 主要工作區：依分頁顯示記帳、分析、搜尋與備份功能 -->
 
 <!-- 資料備份與本地管理 -->
 
@@ -401,7 +445,7 @@
 </div></section><section class="tab-panel hidden space-y-6" data-tab-panel="analysis" id="tab-analysis"><div class="app-themed-panel theme-an rounded-2xl shadow-sm p-6">
 <div class="flex items-center justify-between gap-3">
 <div class="min-w-0">
-<h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📊 每月支出比例（近 6 個月）</h2>
+<h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📊 每月支出比例</h2>
 <p class="text-xs text-gray-400 mt-1">依本區年月篩選為基準，顯示該月及往前 5 個月，最新月份在前</p>
 </div>
 <button aria-controls="pieContent" aria-expanded="false" aria-label="展開每月支出比例" class="section-toggle shrink-0 w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center transition" onclick="toggleSection('pieContent', this, 'pie')" type="button">
@@ -461,17 +505,26 @@
 </div><div class="app-themed-panel theme-an rounded-2xl shadow-sm p-6">
 <div class="flex items-center justify-between gap-3">
 <div class="min-w-0">
-<h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📈 年度支出趨勢</h2>
-<p class="text-xs text-gray-400 mt-1">獨立年度篩選，不受記帳明細與查詢篩選影響</p>
+<h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📈 年度支出</h2>
+<p class="text-xs text-gray-400 mt-1">可多選年份，不受記帳明細與查詢篩選影響</p>
 </div>
-<button aria-controls="trendContent" aria-expanded="false" aria-label="展開年度支出趨勢" class="section-toggle shrink-0 w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center transition" onclick="toggleSection('trendContent', this, 'trend')" type="button">
+<button aria-controls="trendContent" aria-expanded="false" aria-label="展開年度支出" class="section-toggle shrink-0 w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center transition" onclick="toggleSection('trendContent', this, 'trend')" type="button">
 <i aria-hidden="true" class="fa-solid fa-chevron-down"></i>
 </button>
 </div>
 <div class="hidden pt-4" id="trendContent">
-<div class="flex items-center gap-2 mb-5">
-<label class="text-sm font-medium text-gray-600 shrink-0" for="trendYear">年</label>
-<select class="min-w-0 w-auto px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white" id="trendYear" onchange="renderBarChart()"></select>
+<div class="mb-5 relative">
+<button aria-controls="trendYearMenu" aria-expanded="false" aria-haspopup="true" class="w-full sm:w-auto min-w-0 px-3 py-2 border border-gray-300 rounded-lg bg-white text-left text-sm text-gray-700 flex items-center justify-between gap-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500" id="trendYearButton" onclick="toggleTrendYearMenu(event)" type="button">
+<span class="truncate"><span class="font-medium text-gray-600">年：</span><span id="trendYearButtonLabel">全部年份</span></span>
+<i aria-hidden="true" class="fa-solid fa-chevron-down text-xs text-gray-500 shrink-0"></i>
+</button>
+<div class="trend-year-filter-menu hidden absolute z-30 mt-2 left-0 right-0 sm:right-auto sm:w-64 bg-white border border-gray-200 rounded-xl shadow-lg p-3" id="trendYearMenu">
+<label class="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 cursor-pointer border-b border-gray-100 mb-2">
+<input class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" id="trendSelectAll" onchange="toggleAllTrendYears(this.checked)" type="checkbox"/>
+<span class="text-sm font-semibold text-gray-700">全選</span>
+</label>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-1" id="trendYearOptions"></div>
+</div>
 </div>
 <div class="relative h-96 md:h-[30rem] flex justify-center items-center">
 <canvas id="barChart"></canvas>
@@ -535,8 +588,10 @@
 <h3 class="text-base font-bold text-gray-800">📊 篩選結果支出分析</h3>
 <span class="text-xs text-gray-400 shrink-0" id="queryChartSummary"></span>
 </div>
-<div class="query-chart-wrap relative h-80 sm:h-96 w-full">
+<div class="query-chart-scroll" id="queryChartScroll">
+<div class="query-chart-inner" id="queryChartInner">
 <canvas id="queryBarChart"></canvas>
+</div>
 </div>
 </div>
 <!-- 查詢結果 -->
@@ -576,10 +631,66 @@
 <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzFDo5UdjmYIYuMm0Do3kQ2raXiIcHsi7JQRHS4sIkG6cE598y03fP5wbu717XpO3Ks/exec";
 
-        if (typeof Chart !== 'undefined') {
-            Chart.defaults.font.family = "'Noto Sans TC', system-ui, sans-serif";
-        }
         const MUTATION_PASSWORD = "lalala";
+        const CHART_JS_URL = 'https://cdn.jsdelivr.net/npm/chart.js';
+        const XLSX_JS_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        let chartLibraryPromise = null;
+        let xlsxLibraryPromise = null;
+
+        function loadExternalScriptOnce(src, globalName) {
+            if (window[globalName]) return Promise.resolve(window[globalName]);
+            const selector = `script[data-dynamic-src="${src}"]`;
+            const existing = document.querySelector(selector);
+            if (existing?._loadPromise) return existing._loadPromise;
+
+            const script = existing || document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.dataset.dynamicSrc = src;
+
+            const promise = new Promise((resolve, reject) => {
+                script.addEventListener('load', () => {
+                    if (window[globalName]) resolve(window[globalName]);
+                    else reject(new Error(`載入 ${globalName} 失敗`));
+                }, { once: true });
+                script.addEventListener('error', () => reject(new Error(`外部元件載入失敗：${src}`)), { once: true });
+            });
+            script._loadPromise = promise;
+            if (!existing) document.head.appendChild(script);
+            return promise;
+        }
+
+        function ensureChartLibrary() {
+            if (window.Chart) return Promise.resolve(true);
+            if (!chartLibraryPromise) {
+                chartLibraryPromise = loadExternalScriptOnce(CHART_JS_URL, 'Chart')
+                    .then(() => {
+                        Chart.defaults.font.family = "'Noto Sans TC', system-ui, sans-serif";
+                        Chart.defaults.animation.duration = 220;
+                        return true;
+                    })
+                    .catch(error => {
+                        chartLibraryPromise = null;
+                        console.error('Chart.js 載入失敗:', error);
+                        return false;
+                    });
+            }
+            return chartLibraryPromise;
+        }
+
+        function ensureXLSXLibrary() {
+            if (window.XLSX) return Promise.resolve(true);
+            if (!xlsxLibraryPromise) {
+                xlsxLibraryPromise = loadExternalScriptOnce(XLSX_JS_URL, 'XLSX')
+                    .then(() => true)
+                    .catch(error => {
+                        xlsxLibraryPromise = null;
+                        console.error('SheetJS 載入失敗:', error);
+                        return false;
+                    });
+            }
+            return xlsxLibraryPromise;
+        }
 
         let records = [];
         let filteredRecords = [];
@@ -619,6 +730,13 @@
         const TYPE_LIST = Object.keys(TYPE_COLORS);
         const DEFAULT_TYPE_COLOR = '#D1D5DB';
         let selectedTypeTrendTypes = new Set(TYPE_LIST);
+        let selectedTrendYears = new Set();
+        let trendYearsUserChanged = false;
+        const TREND_YEAR_COLORS = [
+            '#2563EB', '#7C3AED', '#059669', '#EA580C', '#DB2777',
+            '#0891B2', '#65A30D', '#9333EA', '#0F766E', '#C2410C',
+            '#4F46E5', '#BE123C'
+        ];
 
         function getLocalDateString(date = new Date()) {
             const year = date.getFullYear();
@@ -743,27 +861,88 @@
             }
         }
 
-        function populateTrendYearOptions(preferredYear = null) {
-            const yearSelect = document.getElementById('trendYear');
-            if (!yearSelect) return;
-
+        function getAvailableYears() {
             const currentYear = String(new Date().getFullYear());
-            const currentValue = preferredYear !== null ? String(preferredYear) : (yearSelect.value || currentYear);
             const years = new Set([currentYear]);
-            records.forEach(r => {
-                const match = String(r.date || '').match(/^(\d{4})-/);
+            records.forEach(record => {
+                const match = String(record.date || '').match(/^(\d{4})-/);
                 if (match) years.add(match[1]);
             });
+            return Array.from(years).sort((a, b) => Number(b) - Number(a));
+        }
 
-            const sortedYears = Array.from(years).sort((a, b) => Number(b) - Number(a));
-            yearSelect.innerHTML = '';
-            sortedYears.forEach(year => {
-                const option = document.createElement('option');
-                option.value = year;
-                option.textContent = year;
-                yearSelect.appendChild(option);
+        function updateTrendYearButtonLabel() {
+            const label = document.getElementById('trendYearButtonLabel');
+            const allCheckbox = document.getElementById('trendSelectAll');
+            if (!label) return;
+
+            const availableYears = getAvailableYears();
+            const selectedYears = availableYears.filter(year => selectedTrendYears.has(year));
+            if (selectedYears.length === availableYears.length && availableYears.length > 0) {
+                label.textContent = '全部年份';
+            } else if (selectedYears.length === 0) {
+                label.textContent = '未選擇年份';
+            } else if (selectedYears.length === 1) {
+                label.textContent = selectedYears[0];
+            } else {
+                label.textContent = `已選 ${selectedYears.length} 年`;
+            }
+
+            if (allCheckbox) {
+                allCheckbox.checked = availableYears.length > 0 && selectedYears.length === availableYears.length;
+                allCheckbox.indeterminate = selectedYears.length > 0 && selectedYears.length < availableYears.length;
+            }
+        }
+
+        function populateTrendYearOptions() {
+            const container = document.getElementById('trendYearOptions');
+            if (!container) return;
+
+            const availableYears = getAvailableYears();
+            const availableSet = new Set(availableYears);
+            if (!trendYearsUserChanged) {
+                selectedTrendYears = new Set(availableYears);
+            } else {
+                selectedTrendYears = new Set(Array.from(selectedTrendYears).filter(year => availableSet.has(year)));
+            }
+
+            container.innerHTML = availableYears.map(year => `
+                <label class="trend-year-filter-option flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" class="trend-year-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="${year}" ${selectedTrendYears.has(year) ? 'checked' : ''} onchange="handleTrendYearChange(this)">
+                    <span class="text-sm text-gray-700 truncate">${year}</span>
+                </label>
+            `).join('');
+
+            updateTrendYearButtonLabel();
+        }
+
+        function handleTrendYearChange(checkbox) {
+            if (!checkbox) return;
+            trendYearsUserChanged = true;
+            if (checkbox.checked) selectedTrendYears.add(checkbox.value);
+            else selectedTrendYears.delete(checkbox.value);
+            updateTrendYearButtonLabel();
+            if (isSectionExpanded('trendContent')) renderBarChart();
+        }
+
+        function toggleAllTrendYears(checked) {
+            trendYearsUserChanged = true;
+            selectedTrendYears = checked ? new Set(getAvailableYears()) : new Set();
+            document.querySelectorAll('.trend-year-checkbox').forEach(checkbox => {
+                checkbox.checked = checked;
             });
-            yearSelect.value = sortedYears.includes(currentValue) ? currentValue : currentYear;
+            updateTrendYearButtonLabel();
+            if (isSectionExpanded('trendContent')) renderBarChart();
+        }
+
+        function toggleTrendYearMenu(event) {
+            if (event) event.stopPropagation();
+            const menu = document.getElementById('trendYearMenu');
+            const button = document.getElementById('trendYearButton');
+            if (!menu || !button) return;
+            const willOpen = menu.classList.contains('hidden');
+            menu.classList.toggle('hidden', !willOpen);
+            button.setAttribute('aria-expanded', String(willOpen));
         }
 
         function populateTypeTrendYearOptions(preferredYear = null) {
@@ -857,12 +1036,18 @@
         }
 
         document.addEventListener('click', function(event) {
-            const menu = document.getElementById('typeTrendTypeMenu');
-            const button = document.getElementById('typeTrendTypeButton');
-            if (!menu || !button) return;
-            if (!menu.contains(event.target) && !button.contains(event.target)) {
-                menu.classList.add('hidden');
-                button.setAttribute('aria-expanded', 'false');
+            const typeMenu = document.getElementById('typeTrendTypeMenu');
+            const typeButton = document.getElementById('typeTrendTypeButton');
+            if (typeMenu && typeButton && !typeMenu.contains(event.target) && !typeButton.contains(event.target)) {
+                typeMenu.classList.add('hidden');
+                typeButton.setAttribute('aria-expanded', 'false');
+            }
+
+            const yearMenu = document.getElementById('trendYearMenu');
+            const yearButton = document.getElementById('trendYearButton');
+            if (yearMenu && yearButton && !yearMenu.contains(event.target) && !yearButton.contains(event.target)) {
+                yearMenu.classList.add('hidden');
+                yearButton.setAttribute('aria-expanded', 'false');
             }
         });
 
@@ -965,6 +1150,8 @@
 
             document.getElementById('typeTrendTypeMenu')?.classList.add('hidden');
             document.getElementById('typeTrendTypeButton')?.setAttribute('aria-expanded', 'false');
+            document.getElementById('trendYearMenu')?.classList.add('hidden');
+            document.getElementById('trendYearButton')?.setAttribute('aria-expanded', 'false');
 
             // Chart.js 在 display:none 父層下不適合保留既有尺寸，因此切頁時先銷毀，再於返回時重建。
             destroyPieCharts();
@@ -986,7 +1173,7 @@
             populatePieYearOptions(currentYear);
             document.getElementById('pieMonth').value = currentMonth;
             document.getElementById('detailMonth').value = currentMonth;
-            populateTrendYearOptions(currentYear);
+            populateTrendYearOptions();
             populateTypeTrendYearOptions(currentYear);
             populateTypeTrendTypeOptions();
         }
@@ -998,6 +1185,18 @@
             fetchCloudData();
             renderQueryResults();
         }
+
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (queryBarChartInstance && activeTab === 'search' && hasQueried) {
+                    const monthCount = queryBarChartInstance.data?.labels?.length || 0;
+                    sizeQueryChartCanvas(monthCount);
+                    queryBarChartInstance.resize();
+                }
+            }, 120);
+        }, { passive: true });
 
         window.onload = windowInitialize;
 
@@ -1487,7 +1686,18 @@
             }
         };
 
-        function renderQueryBarChart(data) {
+        function sizeQueryChartCanvas(monthCount) {
+            const scroll = document.getElementById('queryChartScroll');
+            const inner = document.getElementById('queryChartInner');
+            if (!scroll || !inner) return;
+            const viewportWidth = scroll.clientWidth || scroll.parentElement?.clientWidth || 360;
+            const targetWidth = Math.max(viewportWidth, monthCount * 64 + 76);
+            inner.style.width = `${targetWidth}px`;
+        }
+
+        async function renderQueryBarChart(data) {
+            if (!(await ensureChartLibrary())) return;
+            if (activeTab !== 'search' || !isSectionExpanded('searchContent') || !hasQueried) return;
             const panel = document.getElementById('queryChartPanel');
             const canvas = document.getElementById('queryBarChart');
             const summary = document.getElementById('queryChartSummary');
@@ -1502,6 +1712,8 @@
                 const monthData = monthMap.get(monthKey) || {};
                 return Object.values(monthData).reduce((sum, value) => sum + Number(value || 0), 0);
             });
+            sizeQueryChartCanvas(monthLabels.length);
+
             const activeTypes = TYPE_LIST.filter(type => monthLabels.some(month => Number(monthMap.get(month)?.[type] || 0) > 0));
             const extraTypes = Array.from(new Set(
                 monthLabels.flatMap(month => Object.keys(monthMap.get(month) || {}))
@@ -1514,6 +1726,11 @@
                 backgroundColor: getTypeColor(type),
                 borderColor: '#ffffff',
                 borderWidth: 1,
+                barThickness: 36,
+                maxBarThickness: 36,
+                categoryPercentage: 1,
+                barPercentage: 1,
+                normalized: true,
                 stack: 'query-total'
             }));
 
@@ -1530,13 +1747,11 @@
                     scales: {
                         x: {
                             stacked: true,
-                            title: { display: true, text: '月份' },
                             ticks: { font: { size: 10 } }
                         },
                         y: {
                             stacked: true,
                             beginAtZero: true,
-                            title: { display: true, text: '金額' },
                             ticks: {
                                 callback: value => `$${Number(value).toLocaleString('zh-TW')}`,
                                 font: { size: 10 }
@@ -1637,7 +1852,9 @@
             return new Date(year, month - 1, 1);
         }
 
-        function renderCategoryPieCharts() {
+        async function renderCategoryPieCharts() {
+            if (!(await ensureChartLibrary())) return;
+            if (!isSectionExpanded('pieContent')) return;
             pieChartInstances.forEach(chart => chart.destroy());
             pieChartInstances = [];
 
@@ -1698,7 +1915,8 @@
                             data,
                             backgroundColor: labels.map(label => getTypeColor(label)),
                             borderColor: '#ffffff',
-                            borderWidth: 2
+                            borderWidth: 2,
+                            normalized: true
                         }]
                     },
                     plugins: [piePercentagePlugin],
@@ -1738,45 +1956,66 @@
             return totals;
         }
 
-        function renderBarChart() {
-            const yearSelect = document.getElementById('trendYear');
-            const canvas = document.getElementById('barChart');
-            if (!yearSelect || !canvas || typeof Chart === 'undefined') return;
+        async function renderBarChart() {
+            if (!(await ensureChartLibrary())) return;
+            if (!isSectionExpanded('trendContent') || activeTab !== 'analysis') return;
 
+            const canvas = document.getElementById('barChart');
+            if (!canvas) return;
             if (barChartInstance) {
                 barChartInstance.destroy();
                 barChartInstance = null;
             }
 
-            const selectedYear = yearSelect.value || String(new Date().getFullYear());
-            const monthlyTotals = getYearlyMonthlyTotals(selectedYear);
-            const barData = monthlyTotals.map(value => value / 10000);
+            const availableYears = getAvailableYears();
+            const selectedYears = availableYears.filter(year => selectedTrendYears.has(year));
             const monthLabels = Array.from({ length: 12 }, (_, index) => `${index + 1}月`);
+            const datasets = selectedYears.map(year => {
+                const monthlyTotals = getYearlyMonthlyTotals(year);
+                const colorIndex = Math.max(0, availableYears.indexOf(year));
+                const lineColor = TREND_YEAR_COLORS[colorIndex % TREND_YEAR_COLORS.length];
+                return {
+                    label: year,
+                    data: monthlyTotals.map(value => value / 10000),
+                    borderColor: lineColor,
+                    backgroundColor: lineColor,
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    tension: 0.25,
+                    fill: false,
+                    normalized: true
+                };
+            });
 
             const ctx = canvas.getContext('2d');
             barChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: monthLabels,
-                    datasets: [{
-                        label: '總支出（萬元）',
-                        data: barData,
-                        backgroundColor: '#4f46e5',
-                        borderRadius: 5
-                    }]
-                },
+                type: 'line',
+                data: { labels: monthLabels, datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: false },
-                        title: { display: true, text: `${selectedYear} 年支出趨勢（萬元）` },
+                        legend: {
+                            position: 'bottom',
+                            labels: { usePointStyle: true, pointStyle: 'line', padding: 9, font: { size: 10 } }
+                        },
+                        title: {
+                            display: true,
+                            text: selectedYears.length === 0
+                                ? '尚未選擇年份'
+                                : selectedYears.length === 1
+                                    ? `${selectedYears[0]} 年支出（萬元）`
+                                    : selectedYears.length <= 3
+                                        ? `${selectedYears.join('、')} 年支出（萬元）`
+                                        : `多年度支出（已選 ${selectedYears.length} 年）（萬元）`
+                        },
                         tooltip: {
                             callbacks: {
                                 label(context) {
                                     const wan = Number(context.raw || 0);
-                                    const original = Math.round(wan * 10000);
-                                    return `$${original.toLocaleString('zh-TW')}（${wan.toFixed(2)} 萬元）`;
+                                    return `${context.dataset.label}：$${Math.round(wan * 10000).toLocaleString('zh-TW')}（${wan.toFixed(2)} 萬元）`;
                                 }
                             }
                         }
@@ -1784,9 +2023,8 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            title: { display: true, text: '萬元' },
                             ticks: {
-                                callback: value => `${Number(value).toLocaleString('zh-TW', { maximumFractionDigits: 1 })}`,
+                                callback: value => Number(value).toLocaleString('zh-TW', { maximumFractionDigits: 1 }),
                                 font: { size: 11 }
                             }
                         },
@@ -1815,7 +2053,9 @@
             return typeTotals;
         }
 
-        function renderTypeTrendChart() {
+        async function renderTypeTrendChart() {
+            if (!(await ensureChartLibrary())) return;
+            if (!isSectionExpanded('typeTrendContent') || activeTab !== 'analysis') return;
             const yearSelect = document.getElementById('typeTrendYear');
             const canvas = document.getElementById('typeTrendChart');
             if (!yearSelect || !canvas || typeof Chart === 'undefined') return;
@@ -1834,7 +2074,8 @@
                 tension: 0.25,
                 pointRadius: 2.5,
                 pointHoverRadius: 5,
-                fill: false
+                fill: false,
+                normalized: true
             }));
 
             const ctx = canvas.getContext('2d');
@@ -1866,7 +2107,6 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            title: { display: true, text: '萬元' },
                             ticks: {
                                 callback: value => `${Number(value).toLocaleString('zh-TW', { maximumFractionDigits: 1 })}`,
                                 font: { size: 11 }
@@ -1878,7 +2118,8 @@
             });
         }
 
-        function exportToExcel() {
+        async function exportToExcel() {
+            if (!(await ensureXLSXLibrary())) return;
             if (records.length === 0) {
                 alert('目前沒有任何記帳資料可供匯出！');
                 return;
@@ -1893,7 +2134,8 @@
             XLSX.writeFile(wb, `記帳本備份_${getLocalDateString()}.xlsx`);
         }
 
-        function importFromFile(input) {
+        async function importFromFile(input) {
+            if (!(await ensureXLSXLibrary())) { input.value = ''; return; }
             const file = input.files[0];
             if (!file) return;
 
