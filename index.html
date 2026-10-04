@@ -7,6 +7,7 @@
 <title>🐟☀️記帳（雲端同步版）</title>
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -38,7 +39,7 @@
         /* 頂部同步狀態、更新按鈕：三欄視覺中心，手機優先 */
         .header-core {
             position: relative;
-            min-height: 78px;
+            min-height: 55px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -54,7 +55,7 @@
             align-items: flex-start;
             justify-content: center;
             min-width: 82px;
-            gap: 3px;
+            gap: 6px;
         }
         .header-status #syncStatus {
             margin: 0;
@@ -62,16 +63,19 @@
         }
         #lastUpdatedTime {
             width: auto;
-            max-width: 92px;
+            max-width: none;
             overflow: hidden;
             text-align: left;
             line-height: 1.12;
-            font-size: 5px;
-            white-space: normal;
+            font-size: 8.5px;
+            white-space: nowrap;
         }
         #lastUpdatedTime .sync-time-date,
         #lastUpdatedTime .sync-time-clock {
-            display: block;
+            display: inline;
+        }
+        #lastUpdatedTime .sync-time-clock:not(.hidden)::before {
+            content: " · ";
         }
         .header-title {
             margin: 0;
@@ -139,7 +143,7 @@
             letter-spacing: 0.04em;
         }
 
-        /* 分頁區塊背景：圖片滿版覆蓋寬度，長區塊使用 repeat-y 延伸；圖片本體降至 20% 可見度，避免干擾文字閱讀。 */
+        /* 分頁區塊背景：圖片滿版覆蓋寬度，長區塊使用 repeat-y 延伸；圖片本體維持約 9% 可見度，保留質感並降低閱讀干擾。 */
         .app-themed-panel {
             position: relative;
             overflow: hidden;
@@ -155,8 +159,8 @@
             background-repeat: repeat-y;
             background-position: center top;
             background-size: 100% auto;
-            opacity: 0.04;
-            filter: blur(0.6px) saturate(0.8);
+            opacity: 0.09;
+            filter: blur(0.8px) saturate(0.76);
             transform: scale(1.002);
             pointer-events: none;
         }
@@ -199,29 +203,29 @@
 
         @media (max-width: 639px) {
             .header-core {
-                min-height: 70px;
-                padding-inline: 70px;
+                min-height: 49px;
+                padding-inline: 66px;
             }
             .header-status {
                 min-width: 76px;
-                gap: 2px;
+                gap: 4px;
             }
             .header-status #syncStatus {
                 font-size: 9px;
                 padding: 2px 5px;
             }
             #lastUpdatedTime {
-                max-width: 76px;
-                font-size: 5px;
+                max-width: 112px;
+                font-size: 7.5px;
             }
             .header-title {
                 font-size: 1.5rem;
             }
             .sync-control {
                 right: 0;
-                width: 29px;
+                width: 26px;
             }
-            .sync-icon-button { width: 29px; height: 29px; min-height: 29px; font-size: 16px; }
+            .sync-icon-button { width: 26px; height: 26px; min-height: 26px; font-size: 15px; }
             .app-tab {
                 min-height: 64px;
                 padding-left: 6px;
@@ -239,12 +243,40 @@
                 background-size: 100% auto;
             }
         }
+
+        /* 字體配置：標題／功能標籤採典雅的 Noto Serif TC；輸入與說明文字採 Noto Sans TC；金額採等寬 JetBrains Mono。 */
+        body {
+            font-family: 'Noto Sans TC', system-ui, sans-serif;
+            font-synthesis: none;
+        }
+        h1, h2, h3, h4, h5, h6,
+        .app-tab span,
+        .section-toggle,
+        .record-submit-button,
+        button {
+            font-family: 'Noto Serif TC', 'Noto Sans TC', serif;
+        }
+        label, input, select, textarea,
+        p, small, th, td, .text-xs, .text-sm {
+            font-family: 'Noto Sans TC', system-ui, sans-serif;
+        }
+        .money-number {
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+        }
+        .money-cell {
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen pb-12">
 <div class="max-w-7xl mx-auto px-4 py-8">
 <!-- 頂部標題 -->
-<div class="bg-white rounded-2xl shadow-sm p-6 mb-0 text-center relative">
+<div class="bg-white rounded-2xl shadow-sm px-4 py-4 sm:px-5 sm:py-4 mb-0 text-center relative">
 <div class="header-core">
 <div class="header-status" aria-live="polite">
 <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium animate-pulse" id="syncStatus">正在同步雲端...</span>
@@ -486,15 +518,15 @@
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-5 border-t border-gray-100">
 <div class="p-3 bg-red-50 rounded-xl text-center">
 <p class="text-xs text-gray-500 font-medium mb-1">篩選後總支出</p>
-<p class="text-lg font-bold text-red-600" id="totalExpense">$0</p>
+<p class="text-lg font-bold text-red-600 money-number" id="totalExpense">$0</p>
 </div>
 <div class="p-3 bg-blue-50 rounded-xl text-center">
 <p class="text-xs text-gray-500 font-medium mb-1">篩選後筆數</p>
-<p class="text-lg font-bold text-blue-600" id="totalCount">0</p>
+<p class="text-lg font-bold text-blue-600 money-number" id="totalCount">0</p>
 </div>
 <div class="p-3 bg-green-50 rounded-xl text-center">
 <p class="text-xs text-gray-500 font-medium mb-1">平均每筆</p>
-<p class="text-lg font-bold text-green-600" id="avgExpense">$0</p>
+<p class="text-lg font-bold text-green-600 money-number" id="avgExpense">$0</p>
 </div>
 </div>
 <!-- 篩選結果長條圖分析 -->
@@ -543,6 +575,10 @@
 </div></section></div></div>
 <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzFDo5UdjmYIYuMm0Do3kQ2raXiIcHsi7JQRHS4sIkG6cE598y03fP5wbu717XpO3Ks/exec";
+
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.font.family = "'Noto Sans TC', system-ui, sans-serif";
+        }
         const MUTATION_PASSWORD = "lalala";
 
         let records = [];
@@ -1323,7 +1359,7 @@
                     tr.innerHTML = `
                         <td class="py-3 px-4 font-mono">${escapeHtml(record.date)}</td>
                         <td class="py-3 px-4"><span class="px-2 py-0.5 rounded text-xs font-medium inline-block" style="${getTypeBadgeStyle(record.type)}">${escapeHtml(record.type)}</span></td>
-                        <td class="py-3 px-4 font-bold text-gray-900">$${Number(record.amount || 0).toLocaleString('zh-TW')}</td>
+                        <td class="py-3 px-4 font-bold text-gray-900 money-cell">$${Number(record.amount || 0).toLocaleString('zh-TW')}</td>
                         <td class="py-3 px-4 text-gray-500 max-w-xs truncate" title="${escapeHtml(record.note || '')}">${escapeHtml(record.note || '-') || '-'}</td>
                         <td class="py-3 px-4 text-center whitespace-nowrap">
                             <button onclick="beginEdit(${index})" class="text-blue-600 hover:text-blue-800 font-medium text-xs bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition mr-1">編輯</button>
@@ -1354,7 +1390,7 @@
                 <tr class="hover:bg-gray-50 transition-colors">
                     <td class="py-3 px-4 font-mono">${escapeHtml(record.date)}</td>
                     <td class="py-3 px-4"><span class="px-2 py-0.5 rounded text-xs font-medium inline-block" style="${getTypeBadgeStyle(record.type)}">${escapeHtml(record.type)}</span></td>
-                    <td class="py-3 px-4 font-bold text-gray-900">$${Number(record.amount || 0).toLocaleString('zh-TW')}</td>
+                    <td class="py-3 px-4 font-bold text-gray-900 money-cell">$${Number(record.amount || 0).toLocaleString('zh-TW')}</td>
                     <td class="py-3 px-4 text-gray-500 max-w-xs truncate" title="${escapeHtml(record.note || '')}">${escapeHtml(record.note || '-') || '-'}</td>
                 </tr>
             `).join('');
@@ -1636,7 +1672,7 @@
 
                 const title = document.createElement('h3');
                 title.className = 'text-base sm:text-lg font-bold text-gray-800 text-center mb-3';
-                title.textContent = `${formatYearMonth(monthDate)}($${total.toLocaleString('zh-TW')})`;
+                title.innerHTML = `${formatYearMonth(monthDate)}(<span class="money-number">$${total.toLocaleString('zh-TW')}</span>)`;
                 card.appendChild(title);
 
                 const chartWrap = document.createElement('div');
