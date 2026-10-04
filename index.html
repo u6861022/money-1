@@ -40,21 +40,28 @@
             width: 78px;
         }
         .sync-control button {
-            min-height: 38px;
+            min-height: 32px;
         }
         #lastUpdatedTime {
-            white-space: nowrap;
+            width: 100%;
             max-width: 150px;
             overflow: hidden;
-            text-overflow: ellipsis;
+            text-align: center;
+            line-height: 1.15;
+            font-size: 7px;
+            white-space: normal;
+        }
+        #lastUpdatedTime .sync-time-date,
+        #lastUpdatedTime .sync-time-clock {
+            display: block;
         }
         /* v7：標題、分頁色彩、新增記帳按鈕與分頁專屬背景 */
         .sync-control { width: 92px; }
         .sync-icon-button {
-            width: 40px; height: 40px; min-height: 40px; padding: 0;
+            width: 32px; height: 32px; min-height: 32px; padding: 0;
             border: 0; border-radius: 9999px; background: transparent;
             color: #2563EB; display: inline-flex; align-items: center; justify-content: center;
-            font-size: 22px; line-height: 1; cursor: pointer;
+            font-size: 18px; line-height: 1; cursor: pointer;
             transition: background-color 160ms ease, transform 160ms ease, opacity 160ms ease;
         }
         .sync-icon-button:hover { background-color: rgba(37, 99, 235, 0.08); transform: translateY(-1px); }
@@ -86,7 +93,7 @@
             letter-spacing: 0.04em;
         }
 
-        /* 分頁區塊背景：圖片滿版覆蓋寬度，長區塊使用 repeat-y 延伸；白色玻璃遮罩提升閱讀性。 */
+        /* 分頁區塊背景：圖片滿版覆蓋寬度，長區塊使用 repeat-y 延伸；圖片本體降至 20% 可見度，避免干擾文字閱讀。 */
         .app-themed-panel {
             position: relative;
             overflow: hidden;
@@ -102,6 +109,7 @@
             background-repeat: repeat-y;
             background-position: center top;
             background-size: 100% auto;
+            opacity: 0.20;
             pointer-events: none;
         }
         .app-themed-panel::after {
@@ -109,7 +117,7 @@
             position: absolute;
             inset: 0;
             z-index: 1;
-            background: rgba(255, 255, 255, 0.60);
+            background: rgba(255, 255, 255, 0.35);
             pointer-events: none;
         }
         .app-themed-panel > * {
@@ -143,7 +151,7 @@
 
         @media (max-width: 639px) {
             .sync-control { width: 78px; }
-            .sync-icon-button { width: 36px; height: 36px; min-height: 36px; font-size: 20px; }
+            .sync-icon-button { width: 29px; height: 29px; min-height: 29px; font-size: 16px; }
             .app-tab {
                 min-height: 64px;
                 padding-left: 6px;
@@ -176,7 +184,10 @@
 <button aria-label="更新 Google 試算表資料" class="sync-icon-button" id="syncButton" onclick="syncLatestData()" title="更新 Google 試算表資料" type="button">
 <i aria-hidden="true" class="fa-solid fa-arrows-rotate" id="syncButtonIcon"></i>
 </button>
-<span class="text-[10px] leading-tight text-gray-400 text-center" id="lastUpdatedTime" title="最後成功同步時間">尚未同步</span>
+<span class="text-gray-400 text-center" id="lastUpdatedTime" title="最後成功同步時間">
+<span class="sync-time-date" id="lastUpdatedDate">尚未同步</span>
+<span class="sync-time-clock hidden" id="lastUpdatedClock"></span>
+</span>
 </div>
 </div>
 </div><nav aria-label="主要功能分頁" class="mt-4 bg-white rounded-2xl shadow-sm p-2 grid grid-cols-4 gap-1" id="appTabs">
@@ -762,10 +773,26 @@
 
         function loadLastUpdatedTime() {
             const label = document.getElementById('lastUpdatedTime');
+            const dateLabel = document.getElementById('lastUpdatedDate');
+            const clockLabel = document.getElementById('lastUpdatedClock');
             if (!label) return;
+
             const stored = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
             const formatted = stored ? formatDateTimeForDisplay(stored) : '';
-            label.textContent = formatted || '尚未同步';
+
+            if (!dateLabel || !clockLabel) {
+                label.textContent = formatted || '尚未同步';
+            } else if (formatted) {
+                const [datePart, timePart] = formatted.split(' ');
+                dateLabel.textContent = datePart || '尚未同步';
+                clockLabel.textContent = timePart || '';
+                clockLabel.classList.remove('hidden');
+            } else {
+                dateLabel.textContent = '尚未同步';
+                clockLabel.textContent = '';
+                clockLabel.classList.add('hidden');
+            }
+
             label.title = formatted ? `最後成功同步時間：${formatted}` : '尚未成功同步 Google 試算表';
         }
 
