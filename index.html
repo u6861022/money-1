@@ -315,9 +315,43 @@
             .query-chart-inner { height: 19rem; }
         }
 
-</style>
+        /* 家庭共用密碼登入遮罩：未通過後端驗證前，不載入本機或雲端記帳資料。 */
+        .family-auth-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.25rem;
+            background: rgba(243, 244, 246, 0.97);
+            backdrop-filter: blur(8px);
+        }
+        .family-auth-overlay.hidden { display: none; }
+        .family-auth-card {
+            width: min(100%, 26rem);
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            box-shadow: 0 18px 55px rgba(31, 41, 55, 0.12);
+        }
+    </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen pb-12">
+<div aria-labelledby="familyAuthTitle" aria-modal="true" class="family-auth-overlay" id="familyAuthOverlay" role="dialog">
+    <div class="family-auth-card">
+        <h1 class="text-xl font-bold text-gray-800 mb-2" id="familyAuthTitle">🐟☀️ 家庭記帳</h1>
+        <p class="text-sm text-gray-600 mb-5">請輸入家庭共用密碼，通過驗證後才能讀取記帳資料。</p>
+        <form id="familyAuthForm">
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="familyPasswordInput">家庭共用密碼</label>
+            <input autocomplete="current-password" class="w-full px-3 py-3 border border-gray-300 rounded-lg text-base mb-3" id="familyPasswordInput" required type="password" />
+            <button class="w-full bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 rounded-lg transition" id="familyLoginButton" type="submit">登入並同步資料</button>
+            <p aria-live="polite" class="text-sm text-red-600 mt-3 min-h-5" id="familyAuthMessage"></p>
+        </form>
+        <p class="text-xs text-gray-400 mt-3">登入憑證只保存在目前瀏覽器分頁的暫存空間，最長有效 8 小時。</p>
+    </div>
+</div>
 <div class="max-w-7xl mx-auto px-4 py-8">
 <!-- 頂部標題 -->
 <div class="bg-white rounded-2xl shadow-sm px-4 py-4 sm:px-5 sm:py-4 mb-0 text-center relative">
@@ -624,6 +658,7 @@
                     <input accept=".xlsx, .xls, .csv" class="hidden" id="importFile" onchange="importFromFile(this)" type="file"/>
 </label>
 <button class="bg-gray-600 hover:bg-gray-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm transition" onclick="downloadJsonBackup()">下載 JSON 備份</button>
+<button class="bg-slate-700 hover:bg-slate-800 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm transition" onclick="logoutFamily()">🔒 登出家庭記帳</button>
 <button class="bg-red-50 hover:bg-red-100 text-red-600 font-medium px-4 py-2 rounded-lg text-sm transition" onclick="clearAllDataData()">⚠️ 清除本地快取</button>
 </div>
 <p class="text-xs text-gray-400 mt-2">💡 提示：本系統已啟用 Google Sheets 雲端連線。編輯與刪除目前會先更新本機快取；若要同步修改雲端試算表，仍需直接處理 Google Sheet。</p>
@@ -631,7 +666,12 @@
 <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzFDo5UdjmYIYuMm0Do3kQ2raXiIcHsi7JQRHS4sIkG6cE598y03fP5wbu717XpO3Ks/exec";
 
-        const MUTATION_PASSWORD = "lalala";
+        const AUTH_SESSION_STORAGE_KEY = 'familyAuthSessionV1';
+        const AUTH_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+        const AUTH_CALLBACK_NAME = 'familyApiCallback';
+        const AUTH_SIGNING_CONTEXT = 'MONEY_FAMILY_HMAC_V1';
+        let familyAuthSalt = '';
+        let familyAuthKeyB64 = '';
         const CHART_JS_URL = 'https://cdn.jsdelivr.net/npm/chart.js';
         const XLSX_JS_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
         let chartLibraryPromise = null;
@@ -745,10 +785,240 @@
             return `${year}-${month}-${day}`;
         }
 
-        // 新增／編輯／刪除前的密碼驗證；密碼錯誤或取消時直接中止，不在頁面顯示任何提示。
-        function requestMutationPassword() {
-            const input = window.prompt('請輸入密碼');
-            return input === MUTATION_PASSWORD;
+        function bytesToBase64Url(bytes) {
+            let binary = '';
+            bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+        }
+
+        function base64UrlToBytes(value) {
+            const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+            const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+            const binary = atob(padded);
+            return Uint8Array.from(binary, character => character.charCodeAt(0));
+        }
+
+        async function deriveFamilyAuthKey(password, salt) {
+            const material = `${AUTH_SIGNING_CONTEXT}\n${salt}\n${password}`;
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material));
+            return bytesToBase64Url(new Uint8Array(digest));
+        }
+
+        async function signFamilyRequest(message) {
+            if (!familyAuthKeyB64) throw new Error('尚未登入家庭記帳');
+            const key = await crypto.subtle.importKey(
+                'raw',
+                base64UrlToBytes(familyAuthKeyB64),
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+            const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+            return bytesToBase64Url(new Uint8Array(signature));
+        }
+
+        function createRequestNonce() {
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            return bytesToBase64Url(bytes);
+        }
+
+        function jsonpFamilyRequest(parameters, timeoutMs = 15000) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                let settled = false;
+                let timeoutId = null;
+
+                const cleanup = () => {
+                    if (timeoutId) clearTimeout(timeoutId);
+                    script.onerror = null;
+                    script.remove();
+                    try { delete window[AUTH_CALLBACK_NAME]; } catch (_) { window[AUTH_CALLBACK_NAME] = undefined; }
+                };
+                const finish = (callback, value) => {
+                    if (settled) return;
+                    settled = true;
+                    cleanup();
+                    callback(value);
+                };
+
+                window[AUTH_CALLBACK_NAME] = data => finish(resolve, data);
+                const query = new URLSearchParams({
+                    ...parameters,
+                    callback: AUTH_CALLBACK_NAME,
+                    cacheBust: `${Date.now()}-${createRequestNonce()}`
+                });
+                script.async = true;
+                script.src = `${GAS_URL}?${query.toString()}`;
+                script.onerror = () => finish(reject, new Error('無法連線 Google Apps Script，請確認網路及部署設定。'));
+                timeoutId = setTimeout(() => finish(reject, new Error('Google Apps Script 回應逾時，請稍後重試。')), timeoutMs);
+                document.head.appendChild(script);
+            });
+        }
+
+        async function getFamilyAuthMetadata() {
+            return jsonpFamilyRequest({ action: 'meta' });
+        }
+
+        async function makeSignedReadRequest() {
+            const timestamp = String(Math.floor(Date.now() / 1000));
+            const nonce = createRequestNonce();
+            const message = ['READ', timestamp, nonce, ''].join('\n');
+            const signature = await signFamilyRequest(message);
+            return jsonpFamilyRequest({
+                action: 'read',
+                timestamp,
+                nonce,
+                signature
+            });
+        }
+
+        async function makeSignedPostRequest(action, payload) {
+            const timestamp = String(Math.floor(Date.now() / 1000));
+            const nonce = createRequestNonce();
+            const payloadText = JSON.stringify(payload ?? {});
+            const payloadB64 = bytesToBase64Url(new TextEncoder().encode(payloadText));
+            const message = [action, timestamp, nonce, payloadB64].join('\n');
+            const signature = await signFamilyRequest(message);
+            const requestBody = JSON.stringify({
+                action,
+                timestamp,
+                nonce,
+                payload: payloadB64,
+                signature
+            });
+
+            // 使用 CORS safelisted 的 text/plain，避免 OPTIONS preflight。
+            // no-cors 回應不可讀，因此寫入後會以一筆新的簽章 READ 回讀確認。
+            await fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                body: requestBody
+            });
+        }
+
+        function clearFamilyAuthSession() {
+            familyAuthKeyB64 = '';
+            sessionStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+        }
+
+        function showFamilyAuthOverlay(message = '') {
+            const overlay = document.getElementById('familyAuthOverlay');
+            const messageElement = document.getElementById('familyAuthMessage');
+            if (overlay) overlay.classList.remove('hidden');
+            if (messageElement) messageElement.textContent = message;
+            document.getElementById('familyPasswordInput')?.focus();
+        }
+
+        function hideFamilyAuthOverlay() {
+            document.getElementById('familyAuthOverlay')?.classList.add('hidden');
+            const messageElement = document.getElementById('familyAuthMessage');
+            if (messageElement) messageElement.textContent = '';
+        }
+
+        function applyCloudRecords(cloudData) {
+            if (!Array.isArray(cloudData)) throw new Error('雲端資料格式不正確');
+            records = cloudData.map(normalizeRecord);
+            records.sort((a, b) => new Date(b.date) - new Date(a.date));
+            localStorage.setItem('records', JSON.stringify(records));
+
+            populateDetailYearOptions();
+            populatePieYearOptions();
+            populateTrendYearOptions();
+            populateTypeTrendYearOptions();
+            applyDetailFilter();
+            updateChartsAndDetail();
+
+            queryRecords = [];
+            hasQueried = false;
+            renderQueryResults();
+            markLastUpdatedNow();
+        }
+
+        async function loginWithFamilyPassword(event) {
+            event.preventDefault();
+            const passwordInput = document.getElementById('familyPasswordInput');
+            const loginButton = document.getElementById('familyLoginButton');
+            const messageElement = document.getElementById('familyAuthMessage');
+            const password = passwordInput?.value || '';
+            if (!password) {
+                if (messageElement) messageElement.textContent = '請輸入家庭共用密碼。';
+                return;
+            }
+            if (!familyAuthSalt) {
+                if (messageElement) messageElement.textContent = '尚未取得伺服器設定，請重新整理頁面或稍後再試。';
+                return;
+            }
+
+            if (loginButton) loginButton.disabled = true;
+            if (messageElement) messageElement.textContent = '正在驗證密碼…';
+            try {
+                familyAuthKeyB64 = await deriveFamilyAuthKey(password, familyAuthSalt);
+                const result = await makeSignedReadRequest();
+                if (!result || result.ok !== true || !Array.isArray(result.data)) {
+                    throw new Error(result?.error === 'AUTH_FAILED' ? '家庭密碼錯誤，請重新輸入。' : '登入驗證失敗，請稍後重試。');
+                }
+
+                sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, JSON.stringify({
+                    key: familyAuthKeyB64,
+                    expiresAt: Date.now() + AUTH_SESSION_MAX_AGE_MS
+                }));
+                passwordInput.value = '';
+                hideFamilyAuthOverlay();
+                applyCloudRecords(result.data);
+                const statusLabel = document.getElementById('syncStatus');
+                statusLabel.textContent = '雲端已同步';
+                statusLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
+            } catch (error) {
+                clearFamilyAuthSession();
+                familyAuthKeyB64 = '';
+                if (messageElement) messageElement.textContent = error.message || '登入失敗，請重試。';
+            } finally {
+                if (loginButton) loginButton.disabled = false;
+            }
+        }
+
+        async function initializeFamilyAuthentication() {
+            const form = document.getElementById('familyAuthForm');
+            if (form) form.addEventListener('submit', loginWithFamilyPassword);
+
+            try {
+                const metadata = await getFamilyAuthMetadata();
+                if (!metadata || metadata.ok !== true || !metadata.salt) {
+                    const message = metadata?.error === 'SETUP_REQUIRED'
+                        ? '管理員尚未設定家庭密碼，請先在 Apps Script 執行 setFamilyPassword()。'
+                        : '無法取得登入設定，請確認 Apps Script 部署及網路。';
+                    showFamilyAuthOverlay(message);
+                    return;
+                }
+                familyAuthSalt = metadata.salt;
+
+                const stored = sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+                if (stored) {
+                    try {
+                        const session = JSON.parse(stored);
+                        if (session?.key && Number(session.expiresAt) > Date.now()) {
+                            familyAuthKeyB64 = String(session.key);
+                            const result = await makeSignedReadRequest();
+                            if (result?.ok === true && Array.isArray(result.data)) {
+                                hideFamilyAuthOverlay();
+                                applyCloudRecords(result.data);
+                                document.getElementById('syncStatus').textContent = '雲端已同步';
+                                document.getElementById('syncStatus').className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
+                                return;
+                            }
+                        }
+                    } catch (_) {
+                        // 過期或無效的瀏覽器憑證會被清除，改由家庭密碼重新登入。
+                    }
+                    clearFamilyAuthSession();
+                }
+                showFamilyAuthOverlay();
+            } catch (error) {
+                showFamilyAuthOverlay(error.message || '無法連線至登入服務。');
+            }
         }
 
         function formatYearMonth(date) {
@@ -1181,8 +1451,8 @@
         function windowInitialize() {
             initializeFilters();
             loadLastUpdatedTime();
-            loadLocalCache();
-            fetchCloudData();
+            // 必須先通過家庭密碼驗證，才載入本機快取或雲端資料。
+            initializeFamilyAuthentication();
             renderQueryResults();
         }
 
@@ -1229,8 +1499,12 @@
             }
         }
 
-        function fetchCloudData(manual = false) {
+        async function fetchCloudData(manual = false) {
             if (isCloudSyncing) return;
+            if (!familyAuthKeyB64) {
+                showFamilyAuthOverlay('登入狀態已失效，請重新輸入家庭共用密碼。');
+                return;
+            }
             isCloudSyncing = true;
             setSyncButtonState(true);
 
@@ -1238,43 +1512,26 @@
             statusLabel.textContent = manual ? '正在更新雲端...' : '正在同步雲端...';
             statusLabel.className = 'text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium animate-pulse';
 
-            fetch(GAS_URL, { cache: 'no-store' })
-                .then(res => {
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return res.json();
-                })
-                .then(cloudData => {
-                    if (!Array.isArray(cloudData)) throw new Error('雲端資料格式不正確');
-
-                    records = cloudData.map(normalizeRecord);
-                    records.sort((a, b) => new Date(b.date) - new Date(a.date));
-                    localStorage.setItem('records', JSON.stringify(records));
-
-                    populateDetailYearOptions();
-                    populatePieYearOptions();
-                    populateTrendYearOptions();
-                    populateTypeTrendYearOptions();
-                    applyDetailFilter();
-                    updateChartsAndDetail();
-
-                    // 雲端資料更新後，避免查詢結果停留在舊資料快照。
-                    queryRecords = [];
-                    hasQueried = false;
-                    renderQueryResults();
-
-                    markLastUpdatedNow();
-                    statusLabel.textContent = '雲端已同步';
-                    statusLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
-                })
-                .catch(error => {
-                    console.warn('無法連接雲端資料庫，使用本地快取運行中:', error);
-                    statusLabel.textContent = '離線模式';
-                    statusLabel.className = 'text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium';
-                })
-                .finally(() => {
-                    isCloudSyncing = false;
-                    setSyncButtonState(false);
-                });
+            try {
+                const result = await makeSignedReadRequest();
+                if (result?.ok !== true || !Array.isArray(result.data)) {
+                    if (result?.error === 'AUTH_FAILED') {
+                        clearFamilyAuthSession();
+                        showFamilyAuthOverlay('登入憑證已失效，請重新輸入家庭共用密碼。');
+                    }
+                    throw new Error('無法讀取雲端資料或驗證失敗');
+                }
+                applyCloudRecords(result.data);
+                statusLabel.textContent = '雲端已同步';
+                statusLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
+            } catch (error) {
+                console.warn('無法連接雲端資料庫:', error);
+                statusLabel.textContent = '同步失敗';
+                statusLabel.className = 'text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium';
+            } finally {
+                isCloudSyncing = false;
+                setSyncButtonState(false);
+            }
         }
 
         function destroyPieCharts() {
@@ -1343,7 +1600,11 @@
             });
         }
 
-        function addRecord() {
+        async function addRecord() {
+            if (!familyAuthKeyB64) {
+                showFamilyAuthOverlay('請先登入家庭記帳。');
+                return;
+            }
             const date = document.getElementById('dateInput').value;
             const type = document.getElementById('typeInput').value;
             const amount = Number(document.getElementById('amountInput').value);
@@ -1354,53 +1615,58 @@
                 return;
             }
 
-            // 通過密碼後才允許建立記錄，並才會進入 Google Sheets POST 流程。
-            if (!requestMutationPassword()) return;
-
             const newRecord = { date, type, amount, note };
-            records.unshift(newRecord);
-            records.sort((a, b) => new Date(b.date) - new Date(a.date));
-            localStorage.setItem('records', JSON.stringify(records));
-
-            populateDetailYearOptions();
-            populatePieYearOptions();
-            populateTrendYearOptions();
-            populateTypeTrendYearOptions();
-            applyDetailFilter();
-            updateChartsAndDetail();
-
-            document.getElementById('dateInput').value = getLocalDateString();
-            document.getElementById('typeInput').selectedIndex = 0;
-            document.getElementById('amountInput').value = '';
-            document.getElementById('noteInput').value = '';
-
             const statusLabel = document.getElementById('syncStatus');
-            statusLabel.textContent = '正在同步新記錄到雲端...';
+            const submitButton = document.getElementById('recordSubmitButton');
+            if (submitButton) submitButton.disabled = true;
+            statusLabel.textContent = '正在驗證並新增雲端記錄...';
             statusLabel.className = 'text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium animate-pulse';
 
-            fetch(GAS_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newRecord)
-            })
-                .then(() => {
-                    statusLabel.textContent = '雲端已同步';
-                    statusLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
-                })
-                .catch(error => {
-                    console.error('上傳雲端失敗，資料目前保留在本地快取:', error);
-                    statusLabel.textContent = '上傳失敗(暫存本地)';
-                    statusLabel.className = 'text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium';
-                });
+            try {
+                // 先取一次最新雲端資料，避免多人同時記帳時只依賴過期本機快取。
+                const beforeResult = await makeSignedReadRequest();
+                if (beforeResult?.ok !== true || !Array.isArray(beforeResult.data)) {
+                    throw new Error('無法確認目前雲端資料，請重新同步後再試。');
+                }
+                const fingerprint = record => [record.date, record.type, Number(record.amount), record.note || ''].join('\u001f');
+                const targetFingerprint = fingerprint(newRecord);
+                const beforeCount = beforeResult.data.map(normalizeRecord).filter(record => fingerprint(record) === targetFingerprint).length;
+
+                await makeSignedPostRequest('ADD', newRecord);
+
+                // no-cors POST 的回應內容不可由瀏覽器讀取；使用新 nonce 的 READ 回讀確認寫入結果。
+                const afterResult = await makeSignedReadRequest();
+                if (afterResult?.ok !== true || !Array.isArray(afterResult.data)) {
+                    throw new Error('新增請求已送出，但無法回讀確認。請稍後按右上角同步。');
+                }
+                const afterCount = afterResult.data.map(normalizeRecord).filter(record => fingerprint(record) === targetFingerprint).length;
+                applyCloudRecords(afterResult.data);
+
+                if (afterCount <= beforeCount) {
+                    throw new Error('雲端未確認新增這筆資料；請檢查網路後重試。');
+                }
+
+                document.getElementById('dateInput').value = getLocalDateString();
+                document.getElementById('typeInput').selectedIndex = 0;
+                document.getElementById('amountInput').value = '';
+                document.getElementById('noteInput').value = '';
+                statusLabel.textContent = '雲端已同步';
+                statusLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
+            } catch (error) {
+                console.error('新增雲端記錄失敗:', error);
+                statusLabel.textContent = '新增失敗';
+                statusLabel.className = 'text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium';
+                alert(error.message || '新增失敗，請稍後重試。');
+            } finally {
+                if (submitButton) submitButton.disabled = false;
+            }
         }
 
         function beginEdit(index) {
             const target = filteredRecords[index];
             if (!target) return;
 
-            // 開始編輯前先驗證密碼；錯誤時不進入編輯模式，也不顯示錯誤訊息。
-            if (!requestMutationPassword()) return;
+            // 已通過家庭登入；此既有功能仍只更新本機快取，不同步修改 Google Sheets。
 
             editingRecord = target;
             renderDetailTable();
@@ -1450,8 +1716,7 @@
             const target = filteredRecords[index];
             if (!target) return;
 
-            // 刪除前先驗證密碼；錯誤或取消時不執行刪除，也不顯示錯誤訊息。
-            if (!requestMutationPassword()) return;
+            // 已通過家庭登入；此既有功能仍只刪除本機快取，不同步修改 Google Sheets。
 
             if (confirm('確定要刪除這筆紀錄嗎？此操作會移除本機快取中的資料，Google Sheet 不會同步刪除。')) {
                 const realIndex = records.findIndex(record => record === target);
@@ -2222,6 +2487,11 @@
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
+        }
+
+        function logoutFamily() {
+            clearFamilyAuthSession();
+            showFamilyAuthOverlay('已登出。請重新輸入家庭共用密碼才能讀取資料。');
         }
 
         function clearAllDataData() {
