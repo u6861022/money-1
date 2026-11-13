@@ -45,7 +45,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding-inline: 88px;
+            padding-inline: 88px 126px;
         }
         .header-status {
             position: absolute;
@@ -90,11 +90,12 @@
             right: 0;
             top: 50%;
             transform: translateY(-50%);
-            width: 34px;
+            width: 112px;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-end;
+            gap: 7px;
         }
         .sync-icon-button {
             width: 29px; height: 29px; min-height: 29px; padding: 0;
@@ -111,8 +112,72 @@
         .app-tab.active { color: #4E4E50; background-color: #EAEAEA; box-shadow: inset 0 -3px 0 #4E4E50; }
         .app-tab.active:hover { background-color: #EAEAEA; color: #4E4E50; }
         .app-tab.active img { filter: saturate(0.94); }
-        .record-submit-button { background-color: #A2A2A3; color: #2F3032; }
-        .record-submit-button:hover { background-color: #929294; color: #202124; }
+        .record-submit-button {
+            background-color: #4E4E50;
+            color: #FFFFFF;
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            border-radius: 12px;
+            box-shadow: 0 5px 14px rgba(31, 41, 55, 0.14);
+            transition: background-color 160ms ease, transform 160ms ease, opacity 160ms ease;
+        }
+        .record-submit-button:hover { background-color: #343437; color: #FFFFFF; transform: translateY(-1px); }
+        .record-submit-button:active { transform: translateY(0) scale(0.99); }
+        .record-submit-button:disabled { opacity: 0.78; cursor: wait; transform: none; }
+        .record-submit-button.is-success { background-color: #15803D; color: #FFFFFF; }
+        .record-submit-button.is-loading { background-color: #64748B; color: #FFFFFF; }
+        .header-logout-button {
+            min-height: 30px;
+            padding: 0 8px;
+            border: 1px solid #E5E7EB;
+            border-radius: 9999px;
+            background: #FFFFFF;
+            color: #475569;
+            font-size: 11px;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background-color 160ms ease, border-color 160ms ease;
+        }
+        .header-logout-button:hover { background: #F8FAFC; border-color: #CBD5E1; }
+        .header-logout-button:focus-visible { outline: 2px solid #64748B; outline-offset: 2px; }
+        .record-feedback {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 13px 15px;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            animation: recordFeedbackIn 180ms ease-out;
+        }
+        .record-feedback.hidden { display: none; }
+        .record-feedback.is-pending { background: #F8FAFC; border-color: #CBD5E1; color: #334155; }
+        .record-feedback.is-success { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
+        .record-feedback.is-error { background: #FFF7ED; border-color: #FED7AA; color: #9A3412; }
+        .record-feedback-icon {
+            flex: 0 0 28px;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            background: rgba(255,255,255,.82);
+        }
+        .record-feedback-title { font-size: 14px; font-weight: 700; line-height: 1.4; }
+        .record-feedback-detail { margin-top: 3px; font-size: 12px; line-height: 1.55; white-space: pre-line; color: #475569; }
+        @keyframes recordFeedbackIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .record-feedback { animation: none; }
+            .record-submit-button { transition: none; }
+        }
 
         /* 可輸入欄位：提高邊框對比，讓手機上更容易辨識可操作區域。 */
         input, select, textarea {
@@ -206,7 +271,7 @@
         @media (max-width: 639px) {
             .header-core {
                 min-height: 49px;
-                padding-inline: 66px;
+                padding-inline: 66px 88px;
             }
             .header-status {
                 min-width: 76px;
@@ -225,9 +290,11 @@
             }
             .sync-control {
                 right: 0;
-                width: 26px;
+                width: 78px;
+                gap: 4px;
             }
             .sync-icon-button { width: 26px; height: 26px; min-height: 26px; font-size: 15px; }
+            .header-logout-button { min-height: 27px; padding: 0 6px; font-size: 10px; }
             .app-tab {
                 min-height: 64px;
                 padding-left: 6px;
@@ -368,6 +435,7 @@
 <button aria-label="更新 Google 試算表資料" class="sync-icon-button" id="syncButton" onclick="syncLatestData()" title="更新 Google 試算表資料" type="button">
 <i aria-hidden="true" class="fa-solid fa-arrows-rotate" id="syncButtonIcon"></i>
 </button>
+<button aria-label="登出家庭記帳" class="header-logout-button" id="headerLogoutButton" onclick="logoutFamily()" title="登出並清除此裝置的記帳快取" type="button">登出</button>
 </div>
 </div>
 </div><nav aria-label="主要功能分頁" class="mt-4 bg-white rounded-2xl shadow-sm p-2 grid grid-cols-4 gap-1" id="appTabs">
@@ -414,9 +482,18 @@
 <input class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" id="noteInput" placeholder="錢錢沒有消失只是變成開心的樣子 (ʘᴥʘ)" type="text"/>
 </div>
 <div>
-<button class="record-submit-button w-full font-semibold py-2.5 rounded-lg shadow-sm transition duration-200 text-sm" id="recordSubmitButton" type="submit">
-                                新增記錄
-                            </button>
+<button class="record-submit-button w-full font-semibold py-2.5 rounded-lg shadow-sm transition duration-200 text-sm" id="recordSubmitButton" type="submit" aria-busy="false">
+<i aria-hidden="true" class="fa-solid fa-plus" id="recordSubmitIcon"></i>
+<span id="recordSubmitText">新增紀錄</span>
+</button>
+<div aria-atomic="true" aria-live="polite" class="record-feedback hidden" id="recordFeedback" role="status">
+    <span aria-hidden="true" class="record-feedback-icon" id="recordFeedbackIcon"><i class="fa-solid fa-circle-info"></i></span>
+    <div class="min-w-0">
+        <p class="record-feedback-title" id="recordFeedbackTitle"></p>
+        <p class="record-feedback-detail" id="recordFeedbackDetail"></p>
+    </div>
+</div>
+<p class="text-xs text-gray-500 mt-2">成功後會清空金額與備註，保留日期及類型，方便連續記帳。</p>
 </div>
 <p class="hidden text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2" id="editModeHint">目前正在編輯「記帳明細」中的資料，儲存後會更新本機記帳資料。</p>
 </form>
@@ -658,7 +735,6 @@
                     <input accept=".xlsx, .xls, .csv" class="hidden" id="importFile" onchange="importFromFile(this)" type="file"/>
 </label>
 <button class="bg-gray-600 hover:bg-gray-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm transition" onclick="downloadJsonBackup()">下載 JSON 備份</button>
-<button class="bg-slate-700 hover:bg-slate-800 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm transition" onclick="logoutFamily()">🔒 登出家庭記帳</button>
 <button class="bg-red-50 hover:bg-red-100 text-red-600 font-medium px-4 py-2 rounded-lg text-sm transition" onclick="clearAllDataData()">⚠️ 清除本地快取</button>
 </div>
 <p class="text-xs text-gray-400 mt-2">💡 提示：本系統已啟用 Google Sheets 雲端連線。編輯與刪除目前會先更新本機快取；若要同步修改雲端試算表，仍需直接處理 Google Sheet。</p>
@@ -742,6 +818,8 @@
         let typeTrendChartInstance = null;
         let queryBarChartInstance = null;
         let isCloudSyncing = false;
+        let isAddingRecord = false;
+        let recordButtonResetTimer = null;
         let activeTab = 'record';
         const LAST_SYNC_STORAGE_KEY = 'lastCloudSyncTime';
 
@@ -1600,7 +1678,56 @@
             });
         }
 
+        function showRecordFeedback(state, title, detail) {
+            const panel = document.getElementById('recordFeedback');
+            const icon = document.getElementById('recordFeedbackIcon');
+            const titleElement = document.getElementById('recordFeedbackTitle');
+            const detailElement = document.getElementById('recordFeedbackDetail');
+            if (!panel || !icon || !titleElement || !detailElement) return;
+
+            panel.classList.remove('hidden', 'is-pending', 'is-success', 'is-error');
+            panel.classList.add(`is-${state}`);
+            panel.setAttribute('role', state === 'error' ? 'alert' : 'status');
+            titleElement.textContent = title;
+            detailElement.textContent = detail;
+
+            const iconClass = state === 'pending'
+                ? 'fa-solid fa-spinner fa-spin'
+                : state === 'success'
+                    ? 'fa-solid fa-check'
+                    : 'fa-solid fa-circle-exclamation';
+            icon.innerHTML = `<i class="${iconClass}"></i>`;
+        }
+
+        function setRecordButtonState(state) {
+            const button = document.getElementById('recordSubmitButton');
+            const icon = document.getElementById('recordSubmitIcon');
+            const label = document.getElementById('recordSubmitText');
+            if (!button || !icon || !label) return;
+
+            button.classList.remove('is-loading', 'is-success');
+            if (state === 'pending') {
+                button.disabled = true;
+                button.setAttribute('aria-busy', 'true');
+                button.classList.add('is-loading');
+                icon.className = 'fa-solid fa-spinner fa-spin';
+                label.textContent = '正在儲存…';
+            } else if (state === 'success') {
+                button.disabled = true;
+                button.setAttribute('aria-busy', 'false');
+                button.classList.add('is-success');
+                icon.className = 'fa-solid fa-check';
+                label.textContent = '記帳成功';
+            } else {
+                button.disabled = false;
+                button.setAttribute('aria-busy', 'false');
+                icon.className = 'fa-solid fa-plus';
+                label.textContent = '新增紀錄';
+            }
+        }
+
         async function addRecord() {
+            if (isAddingRecord) return;
             if (!familyAuthKeyB64) {
                 showFamilyAuthOverlay('請先登入家庭記帳。');
                 return;
@@ -1611,54 +1738,90 @@
             const note = document.getElementById('noteInput').value.trim();
 
             if (!date || !type || !Number.isFinite(amount) || amount <= 0) {
-                alert('請填寫正確的日期、類別及金額');
+                showRecordFeedback('error', '資料尚未完整', '請確認日期、消費類型及金額皆已正確填寫。');
                 return;
             }
 
             const newRecord = { date, type, amount, note };
             const statusLabel = document.getElementById('syncStatus');
             const submitButton = document.getElementById('recordSubmitButton');
-            if (submitButton) submitButton.disabled = true;
-            statusLabel.textContent = '正在驗證並新增雲端記錄...';
-            statusLabel.className = 'text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium animate-pulse';
+            isAddingRecord = true;
+            if (recordButtonResetTimer) {
+                clearTimeout(recordButtonResetTimer);
+                recordButtonResetTimer = null;
+            }
+            setRecordButtonState('pending');
+            showRecordFeedback('pending', '正在寫入 Google Sheets…', '正在確認雲端資料，請勿重複點擊。');
+            if (statusLabel) {
+                statusLabel.textContent = '正在新增雲端記錄…';
+                statusLabel.className = 'text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-medium animate-pulse';
+            }
 
+            let confirmed = false;
             try {
-                // 先取一次最新雲端資料，避免多人同時記帳時只依賴過期本機快取。
+                // 先讀取最新雲端資料，避免只依賴過期的本機快取。
                 const beforeResult = await makeSignedReadRequest();
                 if (beforeResult?.ok !== true || !Array.isArray(beforeResult.data)) {
-                    throw new Error('無法確認目前雲端資料，請重新同步後再試。');
+                    throw new Error('目前無法讀取雲端資料。');
                 }
+
                 const fingerprint = record => [record.date, record.type, Number(record.amount), record.note || ''].join('\u001f');
                 const targetFingerprint = fingerprint(newRecord);
-                const beforeCount = beforeResult.data.map(normalizeRecord).filter(record => fingerprint(record) === targetFingerprint).length;
+                const beforeCount = beforeResult.data.map(normalizeRecord)
+                    .filter(record => fingerprint(record) === targetFingerprint).length;
 
                 await makeSignedPostRequest('ADD', newRecord);
 
-                // no-cors POST 的回應內容不可由瀏覽器讀取；使用新 nonce 的 READ 回讀確認寫入結果。
+                // POST 使用 no-cors，無法直接讀取回應；因此以新的簽章 READ 回讀確認。
                 const afterResult = await makeSignedReadRequest();
                 if (afterResult?.ok !== true || !Array.isArray(afterResult.data)) {
-                    throw new Error('新增請求已送出，但無法回讀確認。請稍後按右上角同步。');
+                    throw new Error('新增請求已送出，但暫時無法確認雲端結果。');
                 }
-                const afterCount = afterResult.data.map(normalizeRecord).filter(record => fingerprint(record) === targetFingerprint).length;
-                applyCloudRecords(afterResult.data);
-
+                const afterCount = afterResult.data.map(normalizeRecord)
+                    .filter(record => fingerprint(record) === targetFingerprint).length;
                 if (afterCount <= beforeCount) {
-                    throw new Error('雲端未確認新增這筆資料；請檢查網路後重試。');
+                    throw new Error('雲端尚未確認新增這筆資料。');
                 }
 
-                document.getElementById('dateInput').value = getLocalDateString();
-                document.getElementById('typeInput').selectedIndex = 0;
+                applyCloudRecords(afterResult.data);
+                confirmed = true;
+
+                // 成功後只清除金額與備註；保留日期及類型，方便連續輸入。
                 document.getElementById('amountInput').value = '';
                 document.getElementById('noteInput').value = '';
-                statusLabel.textContent = '雲端已同步';
-                statusLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
+                showRecordFeedback(
+                    'success',
+                    '記帳成功，已同步至 Google Sheets',
+                    `${date}　${type}　NT$ ${amount.toLocaleString('zh-TW')}${note ? `\n備註：${note}` : ''}`
+                );
+                if (statusLabel) {
+                    statusLabel.textContent = '雲端已同步';
+                    statusLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium';
+                }
+                setRecordButtonState('success');
+                document.getElementById('amountInput').focus();
             } catch (error) {
-                console.error('新增雲端記錄失敗:', error);
-                statusLabel.textContent = '新增失敗';
-                statusLabel.className = 'text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium';
-                alert(error.message || '新增失敗，請稍後重試。');
+                console.error('新增雲端記錄失敗或結果未確認:', error);
+                showRecordFeedback(
+                    'error',
+                    '尚未確認是否記帳成功',
+                    `${error.message || '雲端連線發生問題。'}\n請先按右上角同步，確認明細是否已有這筆紀錄；若已出現，請勿重複新增。`
+                );
+                if (statusLabel) {
+                    statusLabel.textContent = '記帳結果待確認';
+                    statusLabel.className = 'text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium';
+                }
+                setRecordButtonState('idle');
             } finally {
-                if (submitButton) submitButton.disabled = false;
+                isAddingRecord = false;
+                if (confirmed) {
+                    recordButtonResetTimer = window.setTimeout(() => {
+                        setRecordButtonState('idle');
+                        recordButtonResetTimer = null;
+                    }, 1800);
+                } else if (submitButton) {
+                    submitButton.disabled = false;
+                }
             }
         }
 
@@ -2490,8 +2653,29 @@
         }
 
         function logoutFamily() {
+            if (!confirm('確定要登出家庭記帳？此裝置的本機記帳快取也會一併清除。')) return;
+
             clearFamilyAuthSession();
+            localStorage.removeItem('records');
+            records = [];
+            filteredRecords = [];
+            queryRecords = [];
+            hasQueried = false;
+            editingRecord = null;
+            if (recordButtonResetTimer) {
+                clearTimeout(recordButtonResetTimer);
+                recordButtonResetTimer = null;
+            }
+            isAddingRecord = false;
+            destroyAllChartInstances();
+            renderDetailTable();
+            renderQueryResults();
             showFamilyAuthOverlay('已登出。請重新輸入家庭共用密碼才能讀取資料。');
+            const statusLabel = document.getElementById('syncStatus');
+            if (statusLabel) {
+                statusLabel.textContent = '已登出';
+                statusLabel.className = 'text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium';
+            }
         }
 
         function clearAllDataData() {
