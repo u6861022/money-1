@@ -410,13 +410,35 @@
     <div class="family-auth-card">
         <h1 class="text-xl font-bold text-gray-800 mb-2" id="familyAuthTitle">🐟☀️ 家庭記帳</h1>
         <p class="text-sm text-gray-600 mb-5">請輸入家庭共用密碼，通過驗證後才能讀取記帳資料。</p>
-        <form id="familyAuthForm">
+        <form id="familyAuthForm" autocomplete="on" method="post">
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="familyUsernameInput">家庭帳號</label>
+            <input
+                autocapitalize="none"
+                autocomplete="username"
+                class="w-full px-3 py-3 border border-gray-300 rounded-lg text-base mb-3"
+                id="familyUsernameInput"
+                name="username"
+                spellcheck="false"
+                type="text"
+                value="家庭共用"
+            />
+            <p class="text-xs text-gray-400 -mt-2 mb-3">固定識別名稱，所有家庭成員共用，不代表個別使用者。</p>
             <label class="block text-sm font-medium text-gray-700 mb-1" for="familyPasswordInput">家庭共用密碼</label>
-            <input autocomplete="current-password" class="w-full px-3 py-3 border border-gray-300 rounded-lg text-base mb-3" id="familyPasswordInput" required type="password" />
-            <button class="w-full bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 rounded-lg transition" id="familyLoginButton" type="submit">登入並同步資料</button>
+            <input
+                autocomplete="current-password"
+                autocapitalize="none"
+                class="w-full px-3 py-3 border border-gray-300 rounded-lg text-base mb-3"
+                id="familyPasswordInput"
+                name="password"
+                required
+                spellcheck="false"
+                type="password"
+            />
+            <button class="w-full bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 rounded-lg transition" id="familyLoginButton" name="login" type="submit">登入並同步資料</button>
             <p aria-live="polite" class="text-sm text-red-600 mt-3 min-h-5" id="familyAuthMessage"></p>
         </form>
-        <p class="text-xs text-gray-400 mt-3">登入憑證只保存在目前瀏覽器分頁的暫存空間，最長有效 8 小時。</p>
+        <p class="text-xs text-gray-400 mt-3">iPhone 可使用「密碼」自動填入並透過 Face ID 解鎖；若未出現建議，請點選「家庭帳號」欄位。首次請先儲存此網站的家庭共用密碼。</p>
+        <p class="text-xs text-gray-400 mt-2">登入憑證只保存在目前瀏覽器分頁的暫存空間，最長有效 8 小時。</p>
     </div>
 </div>
 <div class="max-w-7xl mx-auto px-4 py-8">
@@ -987,7 +1009,7 @@
             const messageElement = document.getElementById('familyAuthMessage');
             if (overlay) overlay.classList.remove('hidden');
             if (messageElement) messageElement.textContent = message;
-            document.getElementById('familyPasswordInput')?.focus();
+            document.getElementById('familyUsernameInput')?.focus();
         }
 
         function hideFamilyAuthOverlay() {
